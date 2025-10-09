@@ -19,6 +19,8 @@ def run_python_file(working_directory, file_path, args=[]):
     if file_path[-3:] != ".py":
         return f'Error: "{file_path}" is not a Python file.'
 
+    # workaround to ensure scripts can run mac or windows
+    # without shebang etc.
     cmd = [sys.executable, abs_given, *map(str, args)]
     try:
         result = subprocess.run(cmd,
