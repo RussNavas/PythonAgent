@@ -44,7 +44,7 @@ def call_function(function_call_part, verbose=False):
         )
 
     return types.Content(
-        role="tool",
+        role="user",
         parts=[
             types.Part.from_function_response(
                 name=function_name,

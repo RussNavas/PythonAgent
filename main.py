@@ -33,6 +33,9 @@ When a listed tool can satisfy the request,
 call it directly without asking for confirmation.
 If arguments are unspecified for run_python_file, 
 use an empty list [] for args.
+When fixing a bug in code, always locate and modify the relevant 
+file in the working directory (e.g., calculator.py)
+instead of creating a new file like main.py.
 """
 
 
@@ -58,44 +61,41 @@ def main():
     messages = [
         types.Content(role="user", parts=[types.Part(text=prompt)]),
     ]
-    response = client.models.generate_content(
-        model='gemini-2.0-flash-001',  # chosen model
-        contents=messages,  # payload from user
-        #  list of available functions and the user prompt
-        config=types.GenerateContentConfig(tools=[available_functions],
-                                           system_instruction=system_prompt),
-    )
-    if "--verbose" in sys.argv:
-        print(f"User prompt: {prompt}")
-        print(f"Prompt tokens:"
-              f"{response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens:"
-              f"{response.usage_metadata.candidates_token_count}")
 
-    if response.function_calls and len(response.function_calls) > 0:
-        call = response.function_calls[0]
-        function_call_result = call_function(call,
-                                             verbose="--verbose" in sys.argv)
-        if not (function_call_result.parts or 
-                not hasattr(function_call_result.parts[0],
-                            "function_response")):
-            raise RuntimeError("Fatal: function call did not"
-                               + "return a function_response")
+    for _ in range(20):
+        response = client.models.generate_content(
+            model='gemini-2.0-flash-001',  # chosen model
+            contents=messages,  # payload from user
+            #  list of available functions and the user prompt
+            config=types.GenerateContentConfig(tools=[available_functions],
+                                            system_instruction=system_prompt),
+        )
+        if response.candidates:
+            for candidate in response.candidates:
+                messages.append(candidate.content)
 
-        if "--verbose" in sys.argv:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
-        else:
-            print(response.text)
-        '''
-        print(f"calling function {call.name}"
-              f"({call.args})")
-        if call.name == "run_python_file":
-            args = call.args.get("args") or []
-            print(f"{args}")
-        '''
+        if response.function_calls and len(response.function_calls) > 0:
+            for call in response.function_calls:
+                function_call_result = call_function(call,
+                                                     verbose="--verbose" in sys.argv)
+                
+                valid = (
+                    function_call_result.parts and
+                    hasattr(function_call_result.parts[0], "function_response")
+                )
+                if not valid:
+                    raise RuntimeError("Fatal: function call did not"
+                                       + "return a function_response")
 
-    if not response.function_calls:
-        print(f"{response.text}")
+                messages.append(function_call_result)
+
+                if "--verbose" in sys.argv:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+            continue
+
+        if not response.function_calls and response.text:
+            print(f"{response.text}")
+            break
 
 
 if __name__ == "__main__":
