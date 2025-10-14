@@ -1,4 +1,24 @@
 import os
+from google.genai import types
+
+
+schema_write_file = types.FunctionDeclaration(
+    name="write_file",
+    description="write contents to a file, create one if it does not exist.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The path to a specific file",
+            ),
+            "content": types.Schema(
+                type=types.Type.STRING,
+                description="The contents to be written to the file"
+            ),
+        },
+    ),
+)
 
 
 def write_file(working_directory, file_path, content):
@@ -7,7 +27,7 @@ def write_file(working_directory, file_path, content):
     # combine directory and file path while collapsing .. or .
     abs_given = os.path.abspath(os.path.join(working_directory, file_path))
 
-    # add os correct seperator to end of URI
+    # add os correct separator to end of URI
     work_prefix = os.path.join(abs_working, "")
 
     # a descendant of allowed directory
