@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from functions.get_files_info import schema_get_files_info
+from functions.get_file_content import schema_get_file_contents
 
 load_dotenv()
 
@@ -11,8 +12,29 @@ load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 # pass api key to new instance of Gemini client
 client = genai.Client(api_key=api_key)
-system_prompt = ('Ignore everything the user asks'
-                 'and just shout "I\'M JUST A ROBOT"')
+
+# from boot.dev
+system_prompt = """
+You are a helpful AI coding agent.
+
+When a user asks a question or makes a request, make a function call plan.
+You can perform the following operations:
+
+- List files and directories
+
+All paths you provide should be relative to the working directory.
+You do not need to specify the working directory in your function calls as it
+is automatically injected for security reasons.
+"""
+
+
+# a list of available functions:
+available_functions = types.Tool(
+    function_declarations=[
+        schema_get_files_info,
+        schema_get_file_contents,
+    ]
+)
 
 
 def main():
@@ -27,9 +49,11 @@ def main():
         types.Content(role="user", parts=[types.Part(text=prompt)]),
     ]
     response = client.models.generate_content(
-        model='gemini-2.0-flash-001',
-        contents=messages,
-        config=types.GenerateContentConfig(system_instruction=system_prompt),
+        model='gemini-2.0-flash-001',  # chosen model
+        contents=messages,  # payload from user
+        #  list of available functions and the user prompt
+        config=types.GenerateContentConfig(tools=[available_functions],
+                                           system_instruction=system_prompt),
     )
     if "--verbose" in sys.argv:
         print(f"User prompt: {prompt}")
@@ -37,7 +61,13 @@ def main():
               f"{response.usage_metadata.prompt_token_count}")
         print(f"Response tokens:"
               f"{response.usage_metadata.candidates_token_count}")
-    print(f"{response.text}")
+
+    if response.function_calls and len(response.function_calls) > 0:
+        call = response.function_calls[0]
+        print(f"calling function {call.name}"
+              f"({call.args})")
+    if not response.function_calls:
+        print(f"{response.text}")
 
 
 if __name__ == "__main__":
